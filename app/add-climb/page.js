@@ -46,14 +46,14 @@ export default function AddClimbPage() {
         className="w-full max-w-md bg-emerald-900/10 border border-emerald-900/20 p-6 rounded-xl space-y-4"
       >
 
-        <h1 className="text-xl font-bold text-center text-emerald-900">
+        <h1 className="text-xl font-bold text-center text-white">
           Add Climb
         </h1>
 
-        {/* UPDATED INPUT RENDERING */}
+        {/* INPUT RENDERING */}
         {Object.keys(form).map((key) => {
 
-          // ✅ RESULT DROPDOWN
+          // RESULT DROPDOWN
           if (key === "result") {
             return (
               <select
@@ -72,7 +72,7 @@ export default function AddClimbPage() {
             );
           }
 
-          // ✅ DATE PICKER
+          // DATE PICKER
           if (key === "date") {
             return (
               <input
@@ -88,7 +88,7 @@ export default function AddClimbPage() {
             );
           }
 
-          // DEFAULT INPUT (everything else unchanged)
+          // DEFAULT INPUT
           return (
             <input
               key={key}

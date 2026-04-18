@@ -1,13 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { db } from "../utils/firebase";
+import { db, auth } from "../utils/firebase";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
-import { useAuth } from "../contexts/AuthContext";
 
 export default function AddClimbPage() {
-  const { user } = useAuth();
-
   const [form, setForm] = useState({
     gym: "",
     route: "",
@@ -18,103 +15,100 @@ export default function AddClimbPage() {
     date: "",
   });
 
-  const [message, setMessage] = useState(null);
-  const [errorField, setErrorField] = useState("");
-
-  const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
-    setErrorField("");
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    for (let key in form) {
-      if (!form[key]) {
-        setMessage("Please fill in all fields");
-        setErrorField(key);
-        return;
-      }
-    }
+    if (!auth.currentUser) return;
 
-    // FIXED: use context instead of auth.currentUser
-    if (!user) {
-      setMessage("You must be logged in");
-      return;
-    }
+    await addDoc(collection(db, "climbs"), {
+      ...form,
+      attempts: Number(form.attempts),
+      userId: auth.currentUser.uid,
+      createdAt: serverTimestamp(),
+    });
 
-    try {
-      await addDoc(collection(db, "climbs"), {
-        ...form,
-        attempts: Number(form.attempts),
-        userId: user.uid,
-        createdAt: serverTimestamp(),
-      });
-
-      setMessage("Climb added successfully!");
-
-      setForm({
-        gym: "",
-        route: "",
-        grade: "",
-        attempts: "",
-        result: "",
-        notes: "",
-        date: "",
-      });
-    } catch (err) {
-      console.error("FIREBASE ERROR:", err);
-      setMessage("The climb could not be added");
-    }
+    setForm({
+      gym: "",
+      route: "",
+      grade: "",
+      attempts: "",
+      result: "",
+      notes: "",
+      date: "",
+    });
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-100">
+    <div className="flex justify-center">
+
       <form
         onSubmit={handleSubmit}
-        className="bg-black p-6 rounded-lg shadow-md w-full max-w-md space-y-4"
+        className="w-full max-w-md bg-emerald-900/10 border border-emerald-900/20 p-6 rounded-xl space-y-4"
       >
-        <h1 className="text-xl font-bold text-center">Add Climb</h1>
 
-        {message && (
-          <div
-            className={`text-sm p-2 rounded ${message.includes("success")
-                ? "bg-green-200 text-green-800"
-                : "bg-red-200 text-red-800"
-              }`}
-          >
-            {message}
-          </div>
-        )}
+        <h1 className="text-xl font-bold text-center text-emerald-900">
+          Add Climb
+        </h1>
 
-        {[
-          { name: "gym", placeholder: "Gym Name" },
-          { name: "route", placeholder: "Route Name" },
-          { name: "grade", placeholder: "Difficulty (V-scale)" },
-          { name: "attempts", placeholder: "Attempts", type: "number" },
-          { name: "result", placeholder: "Result (Success/Fail)" },
-          { name: "notes", placeholder: "Notes" },
-          { name: "date", placeholder: "Date", type: "date" },
-        ].map((field) => (
-          <input
-            key={field.name}
-            type={field.type || "text"}
-            name={field.name}
-            placeholder={field.placeholder}
-            value={form[field.name]}
-            onChange={handleChange}
-            className={`w-full p-2 border rounded ${errorField === field.name ? "border-red-500" : ""
-              }`}
-          />
-        ))}
+        {/* UPDATED INPUT RENDERING */}
+        {Object.keys(form).map((key) => {
 
-        <button
-          type="submit"
-          className="w-full bg-blue-500 text-white p-2 rounded hover:bg-blue-600 transition"
-        >
+          // ✅ RESULT DROPDOWN
+          if (key === "result") {
+            return (
+              <select
+                key={key}
+                name={key}
+                value={form[key]}
+                onChange={(e) =>
+                  setForm({ ...form, result: e.target.value })
+                }
+                className="w-full p-2 rounded border border-emerald-900/20"
+              >
+                <option value="">Select Result</option>
+                <option value="Success">Success</option>
+                <option value="Fail">Fail</option>
+              </select>
+            );
+          }
+
+          // ✅ DATE PICKER
+          if (key === "date") {
+            return (
+              <input
+                key={key}
+                type="date"
+                name={key}
+                value={form[key]}
+                onChange={(e) =>
+                  setForm({ ...form, date: e.target.value })
+                }
+                className="w-full p-2 rounded border border-emerald-900/20"
+              />
+            );
+          }
+
+          // DEFAULT INPUT (everything else unchanged)
+          return (
+            <input
+              key={key}
+              name={key}
+              value={form[key]}
+              placeholder={key}
+              onChange={(e) =>
+                setForm({ ...form, [key]: e.target.value })
+              }
+              className="w-full p-2 rounded border border-emerald-900/20"
+            />
+          );
+        })}
+
+        <button className="w-full bg-emerald-700 text-white p-2 rounded hover:bg-emerald-800">
           Add Climb
         </button>
+
       </form>
+
     </div>
   );
 }

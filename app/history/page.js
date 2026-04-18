@@ -1,211 +1,210 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { db } from "../utils/firebase";
+import { db, auth } from "../utils/firebase";
 import {
   collection,
   query,
   where,
-  orderBy,
   getDocs,
   deleteDoc,
   doc,
+  orderBy,
   updateDoc,
 } from "firebase/firestore";
-import { useAuth } from "../contexts/AuthContext";
 
 export default function HistoryPage() {
-  const { user } = useAuth();
-
   const [climbs, setClimbs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
 
-  const [editingClimb, setEditingClimb] = useState(null);
-  const [editForm, setEditForm] = useState({
-    gym: "",
-    route: "",
-    grade: "",
-    attempts: "",
-    result: "",
-    notes: "",
-    date: "",
-  });
+  const [editingId, setEditingId] = useState(null);
+  const [editForm, setEditForm] = useState({});
 
-  // ---------------- FETCH ----------------
   useEffect(() => {
     const fetchClimbs = async () => {
+      const user = auth.currentUser;
+
       if (!user) {
+        setClimbs([]);
         setLoading(false);
-        setError("You must be logged in to view history");
         return;
       }
 
-      try {
-        const q = query(
-          collection(db, "climbs"),
-          where("userId", "==", user.uid),
-          orderBy("createdAt", "desc")
-        );
+      const q = query(
+        collection(db, "climbs"),
+        where("userId", "==", user.uid),
+        orderBy("createdAt", "desc")
+      );
 
-        const snapshot = await getDocs(q);
+      const snapshot = await getDocs(q);
 
-        const data = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        }));
-
-        setClimbs(data);
-      } catch (err) {
-        console.error(err);
-        setError("Failed to load history");
-      }
-
+      setClimbs(snapshot.docs.map((d) => ({ id: d.id, ...d.data() })));
       setLoading(false);
     };
 
     fetchClimbs();
-  }, [user]);
+  }, []);
 
-  // ---------------- DELETE ----------------
   const handleDelete = async (id) => {
-    try {
-      await deleteDoc(doc(db, "climbs", id));
-      setClimbs((prev) => prev.filter((c) => c.id !== id));
-    } catch (err) {
-      console.error(err);
-      setError("Failed to delete climb");
-    }
+    await deleteDoc(doc(db, "climbs", id));
+    setClimbs((prev) => prev.filter((c) => c.id !== id));
   };
 
-  // ---------------- EDIT START ----------------
-  const startEdit = (climb) => {
-    setEditingClimb(climb);
+  // EDITING
+  const handleEdit = (climb) => {
+    setEditingId(climb.id);
     setEditForm(climb);
   };
 
-  // ---------------- UPDATE ----------------
-  const handleUpdate = async () => {
-    try {
-      const ref = doc(db, "climbs", editingClimb.id);
-
-      await updateDoc(ref, {
-        ...editForm,
-        attempts: Number(editForm.attempts),
-      });
-
-      setClimbs((prev) =>
-        prev.map((c) =>
-          c.id === editingClimb.id ? { ...c, ...editForm } : c
-        )
-      );
-
-      setEditingClimb(null);
-    } catch (err) {
-      console.error(err);
-      setError("Failed to update climb");
-    }
+  // HANDLE INPUT CHANGES
+  const handleChange = (e) => {
+    setEditForm({ ...editForm, [e.target.name]: e.target.value });
   };
 
-  // ---------------- LOADING ----------------
-  if (loading) {
-    return (
-      <div className="p-6">
-        <h1 className="text-xl font-bold">Loading history...</h1>
-      </div>
-    );
-  }
+  // SAVE CHANGES
+  const handleSave = async () => {
+    const ref = doc(db, "climbs", editingId);
 
-  // ---------------- ERROR ----------------
-  if (error) {
-    return (
-      <div className="p-6 text-red-600">
-        <h1 className="text-xl font-bold">{error}</h1>
-      </div>
-    );
-  }
+    await updateDoc(ref, {
+      gym: editForm.gym,
+      route: editForm.route,
+      grade: editForm.grade,
+      result: editForm.result,
+      attempts: editForm.attempts,
+      notes: editForm.notes,
+      date: editForm.date,
+    });
 
-  // ---------------- UI ----------------
+    setClimbs((prev) =>
+      prev.map((c) =>
+        c.id === editingId ? { ...c, ...editForm } : c
+      )
+    );
+
+    setEditingId(null);
+  };
+
+  if (loading) return <p className="text-center">Loading...</p>;
+
+  if (!auth.currentUser)
+    return <p className="text-center">Please log in.</p>;
+
   return (
-    <div className="min-h-screen bg-gray-100 p-6">
-      <h1 className="text-2xl font-bold mb-4">Your Climbing History</h1>
+    <div className="space-y-4">
 
-      {climbs.length === 0 ? (
-        <p className="text-gray-600">No climbs recorded yet.</p>
-      ) : (
-        <div className="grid gap-4">
-          {climbs.map((climb) => (
-            <div key={climb.id} className="bg-white p-4 rounded shadow">
-              <h2 className="font-bold text-lg">{climb.route}</h2>
+      <h1 className="text-2xl font-bold text-center text-white">
+        Climb History
+      </h1>
 
-              <p><strong>Gym:</strong> {climb.gym}</p>
-              <p><strong>Grade:</strong> {climb.grade}</p>
-              <p><strong>Attempts:</strong> {climb.attempts}</p>
-              <p><strong>Result:</strong> {climb.result}</p>
-              <p><strong>Date:</strong> {climb.date}</p>
+      {climbs.map((c) => (
+        <div
+          key={c.id}
+          className="bg-emerald-900/10 border border-emerald-900/20 p-4 rounded-xl flex justify-between"
+        >
 
-              {climb.notes && (
-                <p className="text-sm text-gray-600">
-                  <strong>Notes:</strong> {climb.notes}
+          <div className="w-full">
+
+            {editingId === c.id ? (
+              <>
+                <input
+                  name="route"
+                  value={editForm.route || ""}
+                  onChange={handleChange}
+                  className="border p-1 rounded w-full mb-1"
+                />
+
+                <input
+                  name="gym"
+                  value={editForm.gym || ""}
+                  onChange={handleChange}
+                  className="border p-1 rounded w-full mb-1"
+                />
+
+                <input
+                  name="grade"
+                  value={editForm.grade || ""}
+                  onChange={handleChange}
+                  className="border p-1 rounded w-full mb-1"
+                />
+
+                <input
+                  name="attempts"
+                  value={editForm.attempts || ""}
+                  onChange={handleChange}
+                  className="border p-1 rounded w-full mb-1"
+                />
+
+                <input
+                  name="notes"
+                  value={editForm.notes || ""}
+                  onChange={handleChange}
+                  className="border p-1 rounded w-full mb-1"
+                />
+
+                <input
+                  type="date"
+                  name="date"
+                  value={editForm.date || ""}
+                  onChange={handleChange}
+                  className="border p-1 rounded w-full mb-1"
+                />
+
+                <select
+                  name="result"
+                  value={editForm.result || ""}
+                  onChange={handleChange}
+                  className="border p-1 rounded w-full"
+                >
+                  <option value="Success">Success</option>
+                  <option value="Fail">Fail</option>
+                </select>
+              </>
+            ) : (
+              <>
+                <p className="font-semibold">
+                  {c.route} ({c.grade})
                 </p>
-              )}
 
-              <div className="mt-3 flex gap-2">
-                <button
-                  onClick={() => startEdit(climb)}
-                  className="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600"
-                >
-                  Edit
-                </button>
+                <p className="text-sm">{c.gym}</p>
+                <p className="text-sm">Result: {c.result}</p>
+                <p className="text-sm">Attempts: {c.attempts}</p>
+                <p className="text-sm">Notes: {c.notes}</p>
+                <p className="text-xs text-gray-500">Date: {c.date}</p>
+              </>
+            )}
 
-                <button
-                  onClick={() => handleDelete(climb.id)}
-                  className="bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
+          </div>
 
-      {/* ---------------- EDIT MODAL ---------------- */}
-      {editingClimb && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-          <div className="bg-white p-6 rounded w-96 space-y-2">
-            <h2 className="text-xl font-bold">Edit Climb</h2>
+          <div className="flex flex-col gap-2 ml-4">
 
-            {Object.keys(editForm).map((key) => (
-              <input
-                key={key}
-                name={key}
-                value={editForm[key]}
-                onChange={(e) =>
-                  setEditForm({ ...editForm, [key]: e.target.value })
-                }
-                className="w-full border p-2 rounded"
-              />
-            ))}
-
-            <div className="flex gap-2 mt-3">
+            {editingId === c.id ? (
               <button
-                onClick={handleUpdate}
-                className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+                onClick={handleSave}
+                className="text-green-500 hover:text-green-600"
               >
                 Save
               </button>
-
+            ) : (
               <button
-                onClick={() => setEditingClimb(null)}
-                className="bg-gray-400 text-white px-4 py-2 rounded hover:bg-gray-500"
+                onClick={() => handleEdit(c)}
+                className="text-blue-400 hover:text-blue-500"
               >
-                Cancel
+                Edit
               </button>
-            </div>
+            )}
+
+            <button
+              onClick={() => handleDelete(c.id)}
+              className="text-red-400 hover:text-red-500"
+            >
+              Delete
+            </button>
+
           </div>
+
         </div>
-      )}
+      ))}
+
     </div>
   );
 }
